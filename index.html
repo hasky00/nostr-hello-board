@@ -245,12 +245,7 @@
     "wss://hasky.chat",
     "wss://relay.nostr.band",
     "wss://relay.snort.social",
-    "wss://nostr.wine",
-    "wss://eden.nostr.land",
-    "wss://nostr.mom",
-    "wss://offchain.pub",
-    "wss://relay.current.fyi",
-    "wss://relay.nostr.bg"
+    "wss://nostr.wine"
   ];
   const LIMIT = 20;
   const LOOKBACK_DAYS = 30;
@@ -276,6 +271,16 @@
 
   const shortPub = (pk) => (pk && pk.length > 14 ? pk.slice(0, 8) + "…" + pk.slice(-4) : pk || "unknown");
   const host = (url) => url.replace(/^wss:\/\//, "");
+  const eventLink = (id) => {
+    try { return "https://njump.dev/" + NostrTools.nip19.noteEncode(id); }
+    catch (e) { return "https://njump.dev/" + id; }
+  };
+  const relaySummary = (relays) => {
+    const names = [...relays];
+    return names.length > 3
+      ? names.slice(0, 3).join(", ") + ` +${names.length - 3}`
+      : names.join(", ");
+  };
 
   function timeAgo(ts) {
     const s = Math.max(1, Math.floor(Date.now() / 1000 - ts));
@@ -372,8 +377,8 @@
       </div>
       <div class="content">${linkify(e.content || "")}</div>
       <div class="foot">
-        <span class="tagpill" title="Relays that delivered this note">${esc([...seen.get(e.id).relays].join(", "))}</span>
-        <a class="tagpill" href="https://njump.dev/${esc(e.id)}" target="_blank" rel="noopener noreferrer">open ↗</a>
+        <span class="tagpill" title="${esc([...seen.get(e.id).relays].join(", "))}">${esc(relaySummary(seen.get(e.id).relays))}</span>
+        <a class="tagpill" href="${esc(eventLink(e.id))}" target="_blank" rel="noopener noreferrer">open ↗</a>
       </div>
     </article>`).join("");
   }
@@ -495,7 +500,7 @@ setChip(url, "live", "live");
       const okCount = results.filter(Boolean).length;
       ui.publishMsg.className = okCount ? "msg ok" : "msg err";
       ui.publishMsg.innerHTML = okCount
-        ? `Published to ${okCount}/${RELAYS.length} relay${okCount === 1 ? "" : "s"} · <a href="https://njump.dev/${esc(ev.id)}" target="_blank" rel="noopener noreferrer">view ↗</a>`
+        ? `Published to ${okCount}/${RELAYS.length} relay${okCount === 1 ? "" : "s"} · <a href="${esc(eventLink(ev.id))}" target="_blank" rel="noopener noreferrer">view ↗</a>`
         : "Signed, but no relay accepted it.";
       if (okCount) { ui.noteText.value = ""; setTimeout(load, 700); }
     } catch (e) {
