@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nostr Hello Board</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --bg-soft: #12161b;
+    --card: #161b22;
+    --card-hover: #1b222c;
+    --line: #262d38;
+    --text: #e6edf3;
+    --muted: #8b98a8;
+    --accent: #7c5cff;
+    --accent-2: #00d3f2;
+    --ok: #3fb950;
+    --err: #f85149;
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(700px 380px at 12% -8%, rgba(124, 92, 255, .22), transparent 70%),
+      radial-gradient(620px 340px at 92% 0%, rgba(0, 211, 242, .14), transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  header.top {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    align-items: center; justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center;
+    background: linear-gradient(140deg, var(--accent), var(--accent-2));
+    font-size: 20px; font-weight: 700;
+    box-shadow: 0 6px 22px rgba(124, 92, 255, .35);
+  }
+  h1 { font-size: 19px; margin: 0; letter-spacing: -.2px; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+
+  .signer {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: var(--muted);
+    background: var(--bg-soft); border: 1px solid var(--line);
+    padding: 7px 12px; border-radius: 999px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 10px rgba(63, 185, 80, .8); }
+
+  .panel {
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+
+  .searchrow { display: flex; gap: 10px; flex-wrap: wrap; }
+  .field { position: relative; flex: 1 1 240px; }
+  .field .hash {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-weight: 600; pointer-events: none;
+  }
+  input[type="text"], textarea {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 11px;
+    padding: 11px 14px;
+    font: inherit;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .field input[type="text"] { padding-left: 32px; }
+  input[type="text"]:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124, 92, 255, .18);
+  }
+
+  button {
+    font: inherit; font-weight: 600;
+    border-radius: 11px;
+    padding: 11px 18px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    transition: transform .08s, background .15s, border-color .15s, opacity .15s;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: var(--card-hover); border-color: #38424f; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary {
+    background: linear-gradient(140deg, var(--accent), #6a4bf0);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(124, 92, 255, .32);
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+  .relays { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+  .chip {
+    font-size: 12px; color: var(--muted);
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 11px;
+  }
+  .chip.live { color: var(--ok); border-color: rgba(63, 185, 80, .35); }
+  .chip.dead { color: var(--err); border-color: rgba(248, 81, 73, .3); }
+
+  .status { margin-top: 14px; font-size: 13px; color: var(--muted); min-height: 19px; }
+  .status.err { color: var(--err); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 15px 16px;
+    display: flex; flex-direction: column; gap: 11px;
+    transition: border-color .15s, transform .15s, background .15s;
+    animation: pop .28s ease-out both;
+  }
+  .card:hover { border-color: #3a4552; background: var(--card-hover); transform: translateY(-2px); }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .card .meta { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--muted); }
+  .pk {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: rgba(124, 92, 255, .14);
+    color: #b6a6ff;
+    border: 1px solid rgba(124, 92, 255, .25);
+    padding: 2px 7px; border-radius: 6px; font-size: 12px;
+  }
+  .card .content {
+    font-size: 14.5px; overflow-wrap: anywhere; white-space: pre-wrap;
+  }
+  .card .content a { color: var(--accent-2); }
+  .card .content .tag { color: var(--accent); font-weight: 600; }
+  .card .foot { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: auto; }
+  .tagpill {
+    font-size: 11.5px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px;
+    background: rgba(255, 255, 255, .02);
+    text-decoration: none;
+  }
+  a.tagpill:hover { color: var(--text); border-color: #3a4552; }
+  .time { font-size: 12px; color: var(--muted); }
+
+  .composer { margin-top: 18px; border-top: 1px dashed var(--line); padding-top: 16px; }
+  .composer h3 { margin: 0 0 4px; font-size: 14px; }
+  .composer .hint { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+  textarea { resize: vertical; min-height: 84px; }
+  .composer .row { display: flex; gap: 10px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .msg { font-size: 13px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  .msg a { color: var(--ok); }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px 10px; font-size: 14px; }
+  .hidden { display: none !important; }
+  footer { margin-top: 26px; color: var(--muted); font-size: 12px; text-align: center; }
+  footer code { color: #a5b4c4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">N</div>
+      <div>
+        <h1>Nostr Hello Board</h1>
+        <div class="sub">Latest notes matching a hashtag, straight from the relays.</div>
+      </div>
+    </div>
+    <div class="signer" id="signerBadge"><span class="dot"></span><span id="signerText">Checking for signer…</span></div>
+  </header>
+
+  <section class="panel">
+    <div class="searchrow">
+      <div class="field">
+        <span class="hash">#</span>
+        <input id="tag" type="text" placeholder="bitcoin" autocomplete="off" spellcheck="false" />
+      </div>
+      <button class="primary" id="loadBtn">Load notes</button>
+      <button id="refreshBtn" title="Re-query the relays">Refresh</button>
+    </div>
+    <div class="relays" id="relayChips"></div>
+    <div class="status" id="status">Enter a hashtag and press Load notes.</div>
+  </section>
+
+  <div class="grid" id="grid"></div>
+
+  <section class="panel composer hidden" id="composer">
+    <h3>Publish note</h3>
+    <div class="hint">Signed locally by your browser extension (NIP-07). This page never asks for, sees or stores your private key.</div>
+    <textarea id="noteText" placeholder="Say hello… use #hashtags"></textarea>
+    <div class="row">
+      <button class="primary" id="publishBtn">Publish</button>
+      <span class="msg" id="publishMsg"></span>
+    </div>
+  </section>
+
+  <footer>
+    Kind-1 notes from <code>relay.damus.io</code>, <code>nos.lol</code>, <code>relay.primal.net</code>, <code>hasky.chat</code>
+    — powered by <code>nostr-tools</code>.
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/nostr-tools@2.25.2/lib/nostr.bundle.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  const RELAYS = [
+    "wss://relay.damus.io",
+    "wss://nos.lol",
+    "wss://relay.primal.net",
+    "wss://hasky.chat"
+  ];
+  const LIMIT = 20;
+  const LOOKBACK_DAYS = 30;
+  const CONNECT_TIMEOUT = 7000;
+  const STREAM_TIMEOUT = 11000;
+
+  const $ = (id) => document.getElementById(id);
+  const ui = {
+    tag: $("tag"), load: $("loadBtn"), refresh: $("refreshBtn"), status: $("status"),
+    grid: $("grid"), chips: $("relayChips"), composer: $("composer"), noteText: $("noteText"),
+    publish: $("publishBtn"), publishMsg: $("publishMsg"),
+    signerBadge: $("signerBadge"), signerText: $("signerText")
+  };
+
+  const seen = new Map();          // event id -> { event, relays:Set }
+  let openRuns = [];               // AbortControllers for the in-flight query
+  let streamTimer = null;
+  let runToken = 0;
+  let doneToken = 0;
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  const shortPub = (pk) => (pk && pk.length > 14 ? pk.slice(0, 8) + "…" + pk.slice(-4) : pk || "unknown");
+  const host = (url) => url.replace(/^wss:\/\//, "");
+
+  function timeAgo(ts) {
+    const s = Math.max(1, Math.floor(Date.now() / 1000 - ts));
+    if (s < 60) return s + "s ago";
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + "m ago";
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + "h ago";
+    const d = Math.floor(h / 24);
+    if (d < 30) return d + "d ago";
+    return new Date(ts * 1000).toLocaleDateString();
+  }
+
+  function linkify(text) {
+    return esc(text)
+      .replace(/(https?:\/\/[^\s<]+)/g, (u) =>
+        `<a href="${u}" target="_blank" rel="noopener noreferrer nofollow">${u}</a>`)
+      .replace(/#(\w+)/g, '<span class="tag">#$1</span>');
+  }
+
+  const normTag = (t) => t.replace(/^#+/, "").trim().toLowerCase();
+
+  const isoTime = (ts) => new Date(ts * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+
+  const setStatus = (msg, isError) => {
+    ui.status.textContent = msg;
+    ui.status.classList.toggle("err", !!isError);
+  };
+
+  const setChip = (url, state, label) => {
+    const chip = ui.chips.querySelector('[data-relay="' + url.replace(/"/g, '\\"') + '"]');
+    if (!chip) return;
+    chip.className = "chip" + (state ? " " + state : "");
+    chip.textContent = host(url) + " · " + label;
+  };
+
+  // ---------- signer (NIP-07): read-only unless an extension exposes one ----------
+
+  async function initSigner() {
+    const n = window.nostr;
+    if (!n || typeof n.signEvent !== "function") {
+      ui.signerText.textContent = "No signer (read-only)";
+      return;
+    }
+    let pk = null;
+    try { pk = typeof n.getPublicKey === "function" ? await n.getPublicKey() : null; } catch (e) {}
+    if (!pk) {
+      ui.signerText.textContent = "Signer locked (read-only)";
+      return;
+    }
+    ui.signerBadge.querySelector(".dot").classList.add("ok");
+    ui.signerText.textContent = "Signer connected · " + shortPub(pk);
+    ui.composer.classList.remove("hidden");
+  }
+
+  const requestSign = (evt) => new Promise((resolve, reject) => {
+    let r;
+    try { r = window.nostr.signEvent(evt); }
+    catch (e) { return reject(e); }
+    if (r && typeof r.then === "function") return r.then(resolve, reject);
+    if (typeof r === "function") return r(resolve, reject);
+    reject(new Error("Unsupported signEvent signature"));
+  });
+
+  // ---------- querying ----------
+
+  function abortRun() {
+    if (streamTimer) { clearTimeout(streamTimer); streamTimer = null; }
+    openRuns.forEach((ac) => ac.abort());
+    openRuns = [];
+  }
+
+  const busy = (on) => {
+    ui.load.disabled = on;
+    ui.refresh.disabled = on;
+    ui.load.textContent = on ? "Loading…" : "Load notes";
+  };
+
+  const topNotes = () => [...seen.values()]
+    .map((r) => r.event)
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, LIMIT);
+
+  function render() {
+    const notes = topNotes();
+    if (!notes.length) {
+      ui.grid.innerHTML = `<div class="empty" style="grid-column:1/-1">No matching notes yet. Try another hashtag or press Refresh.</div>`;
+      return;
+    }
+    ui.grid.innerHTML = notes.map((e, i) => `<article class="card" style="animation-delay:${Math.min(i * 25, 300)}ms">
+      <div class="meta">
+        <span class="pk" title="${esc(e.pubkey)}">${esc(shortPub(e.pubkey))}</span>
+        <time class="time" datetime="${esc(new Date(e.created_at * 1000).toISOString())}" title="${esc(isoTime(e.created_at))}">${esc(timeAgo(e.created_at))}</time>
+      </div>
+      <div class="content">${linkify(e.content || "")}</div>
+      <div class="foot">
+        <span class="tagpill" title="Relays that delivered this note">${esc([...seen.get(e.id).relays].join(", "))}</span>
+        <a class="tagpill" href="https://njump.dev/${esc(e.id)}" target="_blank" rel="noopener noreferrer">open ↗</a>
+      </div>
+    </article>`).join("");
+  }
+
+  async function queryRelay(url, filter, tag, token) {
+    const ac = new AbortController();
+    openRuns.push(ac);
+
+    let relay;
+    try {
+      relay = await NostrTools.Relay.connect(url, { timeout: CONNECT_TIMEOUT });
+    } catch (e) {
+      if (token === runToken) setChip(url, "dead", "unreachable");
+      return;
+    }
+    if (token !== runToken || ac.signal.aborted) { try { relay.close(); } catch (e) {} return; }
+
+setChip(url, "live", "live");
+    let done = false;
+    relay.onclose = () => { if (token === runToken && !done) setChip(url, "dead", "closed"); };
+
+    const cleanup = () => { try { relay.close(); } catch (e) {} };
+    const watchdog = setTimeout(() => { if (token === runToken && !done) setChip(url, "", "timeout"); ac.abort(); }, STREAM_TIMEOUT - 1500);
+
+    await new Promise((resolve) => {
+      const settle = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(watchdog);
+        ac.abort();
+        cleanup();
+        resolve();
+      };
+
+      relay.subscribe([filter], {
+        abort: ac.signal,
+        onevent: (ev) => {
+          if (token !== runToken || ev.kind !== 1) return;
+          if (!(ev.content || "").toLowerCase().includes("#" + tag)) return;
+          const entry = seen.get(ev.id);
+          if (entry) { entry.relays.add(host(url)); render(); return; }
+          seen.set(ev.id, { event: ev, relays: new Set([host(url)]) });
+          render();
+          setStatus(`Searching #${tag}… ${topNotes().length} note${topNotes().length === 1 ? "" : "s"} so far.`);
+        },
+        oneose: () => { if (token === runToken && !done) setChip(url, "", "done"); settle(); },
+        onclose: () => settle()
+      });
+    });
+  }
+
+  function finish(token) {
+    if (token !== runToken || doneToken === token) return;
+    doneToken = token;
+    abortRun();
+    busy(false);
+    ui.chips.querySelectorAll(".chip").forEach((chip) => {
+      if (/connecting|\blive$/.test(chip.textContent)) {
+        chip.className = "chip";
+        chip.textContent = chip.textContent.replace(/\s·\s(?:connecting|live)$/, " · idle");
+      }
+    });
+    const n = topNotes().length;
+    render();
+    setStatus(n
+      ? `Showing ${n} of the latest notes for #${normTag(ui.tag.value)} · ${seen.size} match${seen.size === 1 ? "" : "es"} seen.`
+      : `No notes matched #${normTag(ui.tag.value)} on these relays.`);
+  }
+
+  function load() {
+    const tag = normTag(ui.tag.value);
+    if (!tag) { setStatus("Please type a hashtag first.", true); ui.tag.focus(); return; }
+
+    abortRun();
+    const token = ++runToken;
+    seen.clear();
+    busy(true);
+    render();
+    ui.chips.innerHTML = RELAYS.map((r) =>
+      `<span class="chip" data-relay="${esc(r)}">${esc(host(r))} · connecting</span>`).join("");
+    setStatus(`Searching #${tag} on ${RELAYS.length} relays…`);
+
+    const filter = {
+      kinds: [1],
+      since: Math.floor(Date.now() / 1000) - LOOKBACK_DAYS * 86400,
+      limit: 500
+    };
+
+    streamTimer = setTimeout(() => finish(token), STREAM_TIMEOUT);
+    Promise.all(RELAYS.map((url) => queryRelay(url, filter, tag, token))).then(() => finish(token));
+  }
+
+  // ---------- publishing (signer only, never handles keys) ----------
+
+  async function publishTo(url, ev) {
+    const ac = new AbortController();
+    let relay = null;
+    try {
+      relay = await NostrTools.Relay.connect(url, { timeout: 5000, abort: ac.signal });
+      await relay.publish(ev);
+      return true;
+    } catch (e) {
+      return false;
+    } finally {
+      ac.abort();
+      if (relay) { try { relay.close(); } catch (e) {} }
+    }
+  }
+
+  ui.publish.addEventListener("click", async () => {
+    const content = ui.noteText.value.trim();
+    if (!content) { ui.publishMsg.className = "msg err"; ui.publishMsg.textContent = "Write something first."; return; }
+    ui.publish.disabled = true;
+    ui.publishMsg.className = "msg";
+    ui.publishMsg.textContent = "Waiting for your extension…";
+    try {
+      const ev = await requestSign({ kind: 1, content, tags: [], created_at: Math.floor(Date.now() / 1000) });
+      const results = await Promise.all(RELAYS.map((u) => publishTo(u, ev)));
+      const okCount = results.filter(Boolean).length;
+      ui.publishMsg.className = okCount ? "msg ok" : "msg err";
+      ui.publishMsg.innerHTML = okCount
+        ? `Published to ${okCount}/${RELAYS.length} relay${okCount === 1 ? "" : "s"} · <a href="https://njump.dev/${esc(ev.id)}" target="_blank" rel="noopener noreferrer">view ↗</a>`
+        : "Signed, but no relay accepted it.";
+      if (okCount) { ui.noteText.value = ""; setTimeout(load, 700); }
+    } catch (e) {
+      ui.publishMsg.className = "msg err";
+      ui.publishMsg.textContent = "Signing cancelled or failed: " + (e && e.message ? e.message : e);
+    } finally {
+      ui.publish.disabled = false;
+    }
+  });
+
+  ui.load.addEventListener("click", load);
+  ui.refresh.addEventListener("click", load);
+  ui.tag.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+
+  initSigner();
+})();
+</script>
+</body>
+</html>
